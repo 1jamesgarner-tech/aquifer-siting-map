@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Climate-Resilient Aquifer Siting — Parcel Explorer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/pmtiles@3.0.7/dist/pmtiles.js"></script>
+<style>
+  html,body{margin:0;height:100%;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  #map{position:absolute;top:0;bottom:0;left:0;right:0}
+  .panel{position:absolute;z-index:2;background:rgba(255,255,255,.94);border:1px solid #cfcfcf;
+         border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.18);font-size:13px;color:#222}
+  #title{top:10px;left:10px;max-width:340px;padding:10px 12px}
+  #title h1{margin:0 0 3px;font-size:15px}
+  #title p{margin:0;font-size:12px;color:#555;line-height:1.35}
+  #legend{bottom:18px;left:10px;padding:9px 11px;line-height:1.7}
+  #legend .sw{display:inline-block;width:13px;height:13px;border-radius:3px;margin-right:7px;vertical-align:-2px;border:1px solid rgba(0,0,0,.25)}
+  #layers{top:10px;right:10px;padding:8px 11px}
+  #layers label{display:block;cursor:pointer;margin:2px 0}
+  .maplibregl-popup-content{font-size:13px;max-width:280px;padding:11px 13px;border-radius:8px}
+  .pc-addr{font-weight:600;font-size:14px;margin-bottom:2px}
+  .pc-town{color:#666;margin-bottom:7px;font-size:12px}
+  .pc-row{display:flex;justify-content:space-between;gap:14px;padding:1px 0}
+  .pc-row span:first-child{color:#666}
+  .pc-row span:last-child{font-weight:600;text-align:right}
+  .pc-aqf{margin-top:7px;padding-top:6px;border-top:1px solid #eee;color:#2c6e49;font-weight:600}
+  .hint{color:#7a6f4a;font-style:italic}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="title" class="panel">
+  <h1>Climate-Resilient Aquifer Siting</h1>
+  <p>Gold = parcels on suitable aquifer ground (off-floodplain, buildable, contamination removed).
+     <span class="hint">Click a gold parcel for its details.</span></p>
+</div>
+<div id="layers" class="panel">
+  <label><input type="checkbox" id="t-parcels" checked> Shortlist parcels</label>
+  <label><input type="checkbox" id="t-suit" checked> Suitable ground</label>
+  <label><input type="checkbox" id="t-contam" checked> Contamination</label>
+</div>
+<div id="legend" class="panel">
+  <div><span class="sw" style="background:#d9c98a"></span>Shortlist parcel (on aquifer ground)</div>
+  <div><span class="sw" style="background:#2c6e49"></span>Suitable ground</div>
+  <div><span class="sw" style="background:#d83014;border-radius:50%"></span>Contamination (excluded)</div>
+</div>
+
+<script>
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", protocol.tile);
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+    sources: {
+      basemap: { type:"raster", tiles:["https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+                                       "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+                                       "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
+                 tileSize:256, attribution:"© OpenStreetMap, © CARTO" },
+      parcels: { type:"vector", url:"pmtiles://parcels.pmtiles" },
+      suit:    { type:"geojson", data:"suitable.geojson" },
+      contam:  { type:"geojson", data:"contamination.geojson" }
+    },
+    layers: [
+      { id:"bg", type:"raster", source:"basemap" },
+      { id:"suit-fill", type:"fill", source:"suit",
+        paint:{ "fill-color":"#2c6e49", "fill-opacity":0.55 } },
+      { id:"parcels-fill", type:"fill", source:"parcels", "source-layer":"parcels",
+        paint:{ "fill-color":"#d9c98a", "fill-opacity":0.55, "fill-outline-color":"#7a6f4a" } },
+      { id:"parcels-line", type:"line", source:"parcels", "source-layer":"parcels",
+        paint:{ "line-color":"#7a6f4a", "line-width":0.6 } },
+      { id:"contam-pt", type:"circle", source:"contam",
+        paint:{ "circle-radius":4, "circle-color":"#d83014", "circle-opacity":0.85,
+                "circle-stroke-color":"#7a1608", "circle-stroke-width":0.8 } }
+    ]
+  },
+  center: [-72.578, 42.528], zoom: 9, maxZoom: 17
+});
+map.addControl(new maplibregl.NavigationControl(), "bottom-right");
+map.addControl(new maplibregl.ScaleControl({maxWidth:120}), "bottom-left");
+
+// ---- popups -----------------------------------------------------------------
+const money = v => (v==null||v===""||isNaN(+v)) ? null : "$"+Number(v).toLocaleString();
+const sale  = v => (v==null||v===""||isNaN(+v)) ? null : (+v<=1 ? "— (nominal)" : "$"+Number(v).toLocaleString());
+const yr    = v => (v==null||v===""||isNaN(+v)||+v<=0) ? null : String(v);
+const num   = (v,u) => (v==null||v===""||isNaN(+v)) ? null : (+v).toLocaleString()+(u||"");
+const txt   = v => (v==null||v===""||v==="NA") ? null : String(v);
+function row(label,val){ return val==null ? "" : `<div class="pc-row"><span>${label}</span><span>${val}</span></div>`; }
+
+function parcelPopup(p){
+  const aqf = txt(p.aquifer_class);
+  return `<div class="pc-addr">${txt(p.address)||"(no address)"}</div>
+    <div class="pc-town">${txt(p.town)||""} ${p.state?("· "+p.state):""}</div>
+    ${row("Acreage", num(p.acres," ac"))}
+    ${row("On suitable ground", num(p.suit_overlap_acres," ac"))}
+    ${row("Assessed value", money(p.assessed_total))}
+    ${row("Land value", money(p.assessed_land))}
+    ${row("Last sale", sale(p.last_sale_price))}
+    ${row("Owner", txt(p.owner))}
+    ${row("Use", txt(p.use_desc)||txt(p.use_code))}
+    ${row("Zoning", txt(p.zoning))}
+    ${row("Year built", yr(p.year_built))}
+    ${aqf ? `<div class="pc-aqf">${aqf}${p.aquifer_gpm?(" · ~"+p.aquifer_gpm+" gpm"):""}</div>`:""}`;
+}
+map.on("click","parcels-fill", e=>{
+  const p = e.features[0].properties;
+  new maplibregl.Popup({maxWidth:"300px"}).setLngLat(e.lngLat).setHTML(parcelPopup(p)).addTo(map);
+});
+map.on("click","contam-pt", e=>{
+  const p = e.features[0].properties;
+  new maplibregl.Popup().setLngLat(e.lngLat)
+    .setHTML(`<div class="pc-addr" style="color:#a01c0c">${txt(p.contam_name)||"Contamination site"}</div>
+              <div class="pc-town">${txt(p.contam_type)||""}</div>`).addTo(map);
+});
+for (const l of ["parcels-fill","contam-pt"])
+  map.on("mouseenter",l,()=>map.getCanvas().style.cursor="pointer"),
+  map.on("mouseleave",l,()=>map.getCanvas().style.cursor="");
+
+// ---- layer toggles ----------------------------------------------------------
+const toggle = (id, ids) => document.getElementById(id).addEventListener("change", e=>{
+  const v = e.target.checked ? "visible":"none";
+  ids.forEach(L => map.getLayer(L) && map.setLayoutProperty(L,"visibility",v));
+});
+map.on("load", ()=>{
+  toggle("t-parcels",["parcels-fill","parcels-line"]);
+  toggle("t-suit",["suit-fill"]);
+  toggle("t-contam",["contam-pt"]);
+});
+</script>
+</body>
+</html>
