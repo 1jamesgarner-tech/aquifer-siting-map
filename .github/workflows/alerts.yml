@@ -13,6 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     container: rocker/geospatial:latest    # R + sf preinstalled
     steps:
+      - name: Install curl
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends curl ca-certificates
+
       - name: Checkout repo
         uses: actions/checkout@v4
 
@@ -38,6 +43,7 @@ jobs:
 
       - name: Commit refreshed pages
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name  "aquifer-alerts-bot"
           git config user.email "actions@users.noreply.github.com"
           git add listings.html for_sale.geojson seen_listings.csv market_state.csv 2>/dev/null || true
