@@ -46,7 +46,7 @@
 <div id="legend" class="panel">
   <div style="font-weight:600;margin-bottom:3px">For sale now</div>
   <div><span class="sw" style="background:#19a33a"></span>Newly available (&le; 2 wks)</div>
-  <div><span class="sw" style="background:#f5c518"></span>On market &gt; 2 weeks</div>
+  <div><span class="sw" style="background:#06b6d4"></span>On market &gt; 2 weeks</div>
   <div><span class="sw" style="background:#111111"></span>Just sold / off-market</div>
   <div style="font-weight:600;margin:5px 0 3px">Base layers</div>
   <div><span class="sw" style="background:#d9c98a"></span>Shortlist parcel (on aquifer ground)</div>
@@ -83,11 +83,11 @@ const map = new maplibregl.Map({
         paint:{ "line-color":"#7a6f4a", "line-width":0.6 } },
       { id:"forsale-fill", type:"fill", source:"forsale",
         paint:{ "fill-color":["match",["get","status"],
-                  "new","#19a33a", "lingering","#f5c518", "gone","#111111", "#888888"],
+                  "new","#19a33a", "lingering","#06b6d4", "gone","#111111", "#888888"],
                 "fill-opacity":0.85 } },
       { id:"forsale-line", type:"line", source:"forsale",
         paint:{ "line-color":["match",["get","status"],
-                  "new","#0c6b24", "lingering","#9c7e00", "gone","#000000", "#555"],
+                  "new","#0c6b24", "lingering","#0e7490", "gone","#000000", "#555"],
                 "line-width":1.6 } },
       { id:"contam-pt", type:"circle", source:"contam",
         paint:{ "circle-radius":4, "circle-color":"#d83014", "circle-opacity":0.85,
