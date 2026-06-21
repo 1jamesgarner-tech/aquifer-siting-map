@@ -35,13 +35,20 @@
   <h1>Climate-Resilient Aquifer Siting</h1>
   <p>Gold = parcels on suitable aquifer ground (off-floodplain, buildable, contamination removed).
      <span class="hint">Click a gold parcel for its details.</span></p>
+  <p style="margin-top:6px"><a href="listings.html" style="font-weight:600;color:#2c6e49">📋 See parcels currently for sale &rarr;</a></p>
 </div>
 <div id="layers" class="panel">
+  <label><input type="checkbox" id="t-forsale" checked> <b>For sale now</b></label>
   <label><input type="checkbox" id="t-parcels" checked> Shortlist parcels</label>
   <label><input type="checkbox" id="t-suit" checked> Suitable ground</label>
   <label><input type="checkbox" id="t-contam" checked> Contamination</label>
 </div>
 <div id="legend" class="panel">
+  <div style="font-weight:600;margin-bottom:3px">For sale now</div>
+  <div><span class="sw" style="background:#19a33a"></span>Newly available (&le; 2 wks)</div>
+  <div><span class="sw" style="background:#f5c518"></span>On market &gt; 2 weeks</div>
+  <div><span class="sw" style="background:#111111"></span>Just sold / off-market</div>
+  <div style="font-weight:600;margin:5px 0 3px">Base layers</div>
   <div><span class="sw" style="background:#d9c98a"></span>Shortlist parcel (on aquifer ground)</div>
   <div><span class="sw" style="background:#2c6e49"></span>Suitable ground</div>
   <div><span class="sw" style="background:#d83014;border-radius:50%"></span>Contamination (excluded)</div>
@@ -63,7 +70,8 @@ const map = new maplibregl.Map({
                  tileSize:256, attribution:"© OpenStreetMap, © CARTO" },
       parcels: { type:"vector", url:"pmtiles://parcels.pmtiles" },
       suit:    { type:"geojson", data:"suitable.geojson" },
-      contam:  { type:"geojson", data:"contamination.geojson" }
+      contam:  { type:"geojson", data:"contamination.geojson" },
+      forsale: { type:"geojson", data:"for_sale.geojson" }
     },
     layers: [
       { id:"bg", type:"raster", source:"basemap" },
@@ -73,6 +81,14 @@ const map = new maplibregl.Map({
         paint:{ "fill-color":"#d9c98a", "fill-opacity":0.55, "fill-outline-color":"#7a6f4a" } },
       { id:"parcels-line", type:"line", source:"parcels", "source-layer":"parcels",
         paint:{ "line-color":"#7a6f4a", "line-width":0.6 } },
+      { id:"forsale-fill", type:"fill", source:"forsale",
+        paint:{ "fill-color":["match",["get","status"],
+                  "new","#19a33a", "lingering","#f5c518", "gone","#111111", "#888888"],
+                "fill-opacity":0.85 } },
+      { id:"forsale-line", type:"line", source:"forsale",
+        paint:{ "line-color":["match",["get","status"],
+                  "new","#0c6b24", "lingering","#9c7e00", "gone","#000000", "#555"],
+                "line-width":1.6 } },
       { id:"contam-pt", type:"circle", source:"contam",
         paint:{ "circle-radius":4, "circle-color":"#d83014", "circle-opacity":0.85,
                 "circle-stroke-color":"#7a1608", "circle-stroke-width":0.8 } }
@@ -110,13 +126,24 @@ map.on("click","parcels-fill", e=>{
   const p = e.features[0].properties;
   new maplibregl.Popup({maxWidth:"300px"}).setLngLat(e.lngLat).setHTML(parcelPopup(p)).addTo(map);
 });
+map.on("click","forsale-fill", e=>{
+  const p = e.features[0].properties;
+  const lab = {new:"🟢 Newly available", lingering:"🟡 On market &gt; 2 weeks", gone:"⚫ Just sold / off-market"}[p.status] || p.status;
+  const z = "https://www.zillow.com/homes/"+encodeURIComponent(String(p.address||"").replace(/,/g,"").replace(/\s+/g,"-"))+"_rb/";
+  new maplibregl.Popup({maxWidth:"300px"}).setLngLat(e.lngLat).setHTML(
+    `<div class="pc-addr">${txt(p.address)||"(address)"}</div>
+     <div class="pc-town" style="font-weight:600">${lab}</div>
+     ${row("Price", money(p.price))}
+     ${row("Days on market", txt(p.dom))}
+     <a href="${z}" style="display:inline-block;margin-top:6px;font-weight:600">View listing &rarr;</a>`).addTo(map);
+});
 map.on("click","contam-pt", e=>{
   const p = e.features[0].properties;
   new maplibregl.Popup().setLngLat(e.lngLat)
     .setHTML(`<div class="pc-addr" style="color:#a01c0c">${txt(p.contam_name)||"Contamination site"}</div>
               <div class="pc-town">${txt(p.contam_type)||""}</div>`).addTo(map);
 });
-for (const l of ["parcels-fill","contam-pt"])
+for (const l of ["parcels-fill","contam-pt","forsale-fill"])
   map.on("mouseenter",l,()=>map.getCanvas().style.cursor="pointer"),
   map.on("mouseleave",l,()=>map.getCanvas().style.cursor="");
 
@@ -126,6 +153,7 @@ const toggle = (id, ids) => document.getElementById(id).addEventListener("change
   ids.forEach(L => map.getLayer(L) && map.setLayoutProperty(L,"visibility",v));
 });
 map.on("load", ()=>{
+  toggle("t-forsale",["forsale-fill","forsale-line"]);
   toggle("t-parcels",["parcels-fill","parcels-line"]);
   toggle("t-suit",["suit-fill"]);
   toggle("t-contam",["contam-pt"]);
