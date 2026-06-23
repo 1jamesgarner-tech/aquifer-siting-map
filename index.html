@@ -27,6 +27,12 @@
   .pc-row span:last-child{font-weight:600;text-align:right}
   .pc-aqf{margin-top:7px;padding-top:6px;border-top:1px solid #eee;color:#2c6e49;font-weight:600}
   .hint{color:#7a6f4a;font-style:italic}
+  #pricebox{bottom:18px;left:50%;transform:translateX(-50%);padding:10px 13px;width:290px}
+  #pricebox .prow{display:flex;align-items:center;gap:8px;margin:4px 0}
+  #pricebox .prow span.lab{width:26px;color:#666;font-size:11px}
+  #pricebox input[type=range]{flex:1;accent-color:#2c6e49;cursor:pointer}
+  #pbtn{border:1px solid #cfcfcf;background:#fff;border-radius:6px;padding:2px 9px;font-size:12px;cursor:pointer}
+  #pbtn:hover{background:#f1f1f1}
 </style>
 </head>
 <body>
@@ -52,6 +58,16 @@
   <div><span class="sw" style="background:#d9c98a"></span>Shortlist parcel (on aquifer ground)</div>
   <div><span class="sw" style="background:#2c6e49"></span>Suitable ground</div>
   <div><span class="sw" style="background:#d83014;border-radius:50%"></span>Contamination (excluded)</div>
+</div>
+<div id="pricebox" class="panel">
+  <div style="font-weight:600;margin-bottom:5px">Filter for-sale by price
+    <span id="pcount" style="font-weight:400;color:#666;font-size:11px"></span></div>
+  <div class="prow"><span class="lab">Min</span><input type="range" id="pmin"></div>
+  <div class="prow"><span class="lab">Max</span><input type="range" id="pmax"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:5px">
+    <span id="pread" style="font-weight:700;color:#2c6e49">&mdash;</span>
+    <button id="pbtn">Reset</button>
+  </div>
 </div>
 
 <script>
@@ -81,6 +97,8 @@ const map = new maplibregl.Map({
         paint:{ "fill-color":"#d9c98a", "fill-opacity":0.55, "fill-outline-color":"#7a6f4a" } },
       { id:"parcels-line", type:"line", source:"parcels", "source-layer":"parcels",
         paint:{ "line-color":"#7a6f4a", "line-width":0.6 } },
+      { id:"forsale-dim", type:"fill", source:"forsale", layout:{ visibility:"none" },
+        paint:{ "fill-color":"#9aa0a6", "fill-opacity":0.28 } },
       { id:"forsale-fill", type:"fill", source:"forsale",
         paint:{ "fill-color":["match",["get","status"],
                   "new","#19a33a", "lingering","#06b6d4", "gone","#111111", "#888888"],
@@ -89,6 +107,9 @@ const map = new maplibregl.Map({
         paint:{ "line-color":["match",["get","status"],
                   "new","#0c6b24", "lingering","#0e7490", "gone","#000000", "#555"],
                 "line-width":1.6 } },
+      { id:"forsale-pulse", type:"line", source:"forsale",
+        layout:{ visibility:"none", "line-cap":"round", "line-join":"round" },
+        paint:{ "line-color":"#ffd000", "line-width":4, "line-opacity":0.7, "line-blur":2 } },
       { id:"contam-pt", type:"circle", source:"contam",
         paint:{ "circle-radius":4, "circle-color":"#d83014", "circle-opacity":0.85,
                 "circle-stroke-color":"#7a1608", "circle-stroke-width":0.8 } }
@@ -152,11 +173,66 @@ const toggle = (id, ids) => document.getElementById(id).addEventListener("change
   const v = e.target.checked ? "visible":"none";
   ids.forEach(L => map.getLayer(L) && map.setLayoutProperty(L,"visibility",v));
 });
+
+// ---- price filter + pulse ---------------------------------------------------
+let forsaleOn = true, FORSALE_FEATURES = [], DMIN = 0, DMAX = 3000000, pulseRAF = null;
+const minEl = document.getElementById("pmin"), maxEl = document.getElementById("pmax"),
+      readEl = document.getElementById("pread"), countEl = document.getElementById("pcount");
+const fmtK = v => v>=1000000 ? "$"+(v/1000000).toFixed(2).replace(/\.?0+$/,"")+"M" : "$"+Math.round(v/1000)+"k";
+
+function startPulse(){
+  if (pulseRAF) return;
+  const t0 = performance.now();
+  const step = now => {
+    const s = 0.5 + 0.5*Math.sin((now-t0)/600);          // 0..1 oscillation
+    if (map.getLayer("forsale-pulse")){
+      map.setPaintProperty("forsale-pulse","line-width", 3 + 13*s);   // ring grows
+      map.setPaintProperty("forsale-pulse","line-opacity", 0.12 + 0.8*s); // and blinks
+    }
+    if (map.getLayer("forsale-fill"))
+      map.setPaintProperty("forsale-fill","fill-opacity", 0.6 + 0.35*s);
+    pulseRAF = requestAnimationFrame(step);
+  };
+  pulseRAF = requestAnimationFrame(step);
+}
+function stopPulse(){
+  if (pulseRAF){ cancelAnimationFrame(pulseRAF); pulseRAF = null; }
+  if (map.getLayer("forsale-fill")) map.setPaintProperty("forsale-fill","fill-opacity", 0.85);
+}
+
+function refreshForsale(){
+  const lo = Math.min(+minEl.value, +maxEl.value), hi = Math.max(+minEl.value, +maxEl.value);
+  const narrowed = lo > DMIN || hi < DMAX;
+  const pe = ["to-number",["get","price"], -1];
+  const filt = narrowed ? ["all", [">=", pe, lo], ["<=", pe, hi]] : null;
+  ["forsale-fill","forsale-line","forsale-pulse"].forEach(L => map.getLayer(L) && map.setFilter(L, filt));
+  const vis = forsaleOn ? "visible":"none";
+  ["forsale-fill","forsale-line"].forEach(L => map.setLayoutProperty(L,"visibility",vis));
+  const aux = (forsaleOn && narrowed) ? "visible":"none";
+  ["forsale-dim","forsale-pulse"].forEach(L => map.setLayoutProperty(L,"visibility",aux));
+  if (forsaleOn && narrowed) startPulse(); else stopPulse();
+  readEl.textContent = `${fmtK(lo)} – ${fmtK(hi)}`;
+  const n = FORSALE_FEATURES.filter(f => { const p = parseFloat(f.properties.price); return p>=lo && p<=hi; }).length;
+  countEl.textContent = narrowed ? `(${n} in range)` : `(${FORSALE_FEATURES.length} total)`;
+}
+
 map.on("load", ()=>{
-  toggle("t-forsale",["forsale-fill","forsale-line"]);
   toggle("t-parcels",["parcels-fill","parcels-line"]);
   toggle("t-suit",["suit-fill"]);
   toggle("t-contam",["contam-pt"]);
+  document.getElementById("t-forsale").addEventListener("change", e=>{ forsaleOn = e.target.checked; refreshForsale(); });
+  minEl.addEventListener("input", refreshForsale);
+  maxEl.addEventListener("input", refreshForsale);
+  document.getElementById("pbtn").addEventListener("click", ()=>{ minEl.value = DMIN; maxEl.value = DMAX; refreshForsale(); });
+
+  fetch("for_sale.geojson").then(r=>r.json()).then(j=>{
+    FORSALE_FEATURES = j.features || [];
+    const prices = FORSALE_FEATURES.map(f => parseFloat(f.properties.price)).filter(v => !isNaN(v) && v>0);
+    if (prices.length){ DMIN = Math.floor(Math.min(...prices)/5000)*5000; DMAX = Math.ceil(Math.max(...prices)/5000)*5000; }
+    [minEl,maxEl].forEach(el => { el.min = DMIN; el.max = DMAX; el.step = 5000; });
+    minEl.value = DMIN; maxEl.value = DMAX;
+    refreshForsale();
+  }).catch(()=>{ readEl.textContent = "(price data unavailable)"; });
 });
 </script>
 </body>
