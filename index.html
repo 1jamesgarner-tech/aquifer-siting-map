@@ -68,6 +68,7 @@
   <label class="leg"><input type="checkbox" id="s-new" checked><span class="sw" style="background:#19a33a"></span>Newly available (&le; 2 wks)</label>
   <label class="leg"><input type="checkbox" id="s-lingering" checked><span class="sw" style="background:#06b6d4"></span>On market &gt; 2 weeks</label>
   <label class="leg"><input type="checkbox" id="s-gone" checked><span class="sw" style="background:#111111"></span>Just sold / off-market</label>
+  <label class="leg" style="margin-top:3px;color:#b00020"><input type="checkbox" id="h-hoa"> Hide HOA properties</label>
   <div style="font-weight:600;margin:5px 0 3px">Base layers</div>
   <div><span class="sw" style="background:#d9c98a"></span>Shortlist parcel (on aquifer ground)</div>
   <div><span class="sw" style="background:#2c6e49"></span>Suitable ground</div>
@@ -182,6 +183,7 @@ map.on("click","forsale-fill", e=>{
      <div class="pc-town" style="font-weight:600">${lab}</div>
      ${row("Price", money(p.price))}
      ${row("Days on market", txt(p.dom))}
+     ${row("HOA", (p.hoa&&+p.hoa>0) ? ("⚠ $"+Number(p.hoa).toLocaleString()+"/mo") : "None reported")}
      <a href="${z}" style="display:inline-block;margin-top:6px;font-weight:600">View listing &rarr;</a>`).addTo(map);
 });
 map.on("click","contam-pt", e=>{
@@ -252,16 +254,21 @@ function refreshForsale(){
   const stClause = ["in", ["get","status"], ["literal", stsel]];     // category filter
   const pe = ["to-number",["get","price"], -1];
   const priceClause = narrowed ? ["all", [">=", pe, lo], ["<=", pe, hi]] : null;
-  const mainFilt = priceClause ? ["all", stClause, priceClause] : stClause;
+  const hideHoa = document.getElementById("h-hoa") && document.getElementById("h-hoa").checked;
+  const hoaClause = hideHoa ? ["<=", ["to-number",["get","hoa"], 0], 0] : null;   // keep only no/zero-HOA
+  const clauses = [stClause]; if (priceClause) clauses.push(priceClause); if (hoaClause) clauses.push(hoaClause);
+  const mainFilt = clauses.length>1 ? ["all", ...clauses] : stClause;
   ["forsale-fill","forsale-line","forsale-pulse"].forEach(L => map.getLayer(L) && map.setFilter(L, mainFilt));
-  map.getLayer("forsale-dim") && map.setFilter("forsale-dim", stClause);  // dim = selected categories, price-agnostic
+  const dimFilt = hoaClause ? ["all", stClause, hoaClause] : stClause;
+  map.getLayer("forsale-dim") && map.setFilter("forsale-dim", dimFilt);  // dim = selected categories (price-agnostic)
   const vis = forsaleOn ? "visible":"none";
   ["forsale-fill","forsale-line"].forEach(L => map.setLayoutProperty(L,"visibility",vis));
   const aux = (forsaleOn && narrowed) ? "visible":"none";
   ["forsale-dim","forsale-pulse"].forEach(L => map.setLayoutProperty(L,"visibility",aux));
   if (forsaleOn && narrowed) startPulse(); else stopPulse();
   readEl.textContent = `${fmtK(lo)} – ${fmtK(hi)}`;
-  const n = FORSALE_FEATURES.filter(f => { const p = parseFloat(f.properties.price); return p>=lo && p<=hi && stsel.includes(f.properties.status); }).length;
+  const n = FORSALE_FEATURES.filter(f => { const p = parseFloat(f.properties.price); const h = parseFloat(f.properties.hoa);
+    return p>=lo && p<=hi && stsel.includes(f.properties.status) && (!hideHoa || !(h>0)); }).length;
   countEl.textContent = narrowed ? `(${n} in range)` : `(${n} shown)`;
 }
 
@@ -272,7 +279,7 @@ map.on("load", ()=>{
   document.querySelectorAll('input[name=flood]').forEach(r => r.addEventListener("change", e=>{ floodLevel = +e.target.value; applyFlood(); }));
   applyFlood();   // set initial parcel filter + suitable layer for the default level
   document.getElementById("t-forsale").addEventListener("change", e=>{ forsaleOn = e.target.checked; refreshForsale(); });
-  ["s-new","s-lingering","s-gone"].forEach(id => document.getElementById(id).addEventListener("change", refreshForsale));
+  ["s-new","s-lingering","s-gone","h-hoa"].forEach(id => document.getElementById(id).addEventListener("change", refreshForsale));
   minEl.addEventListener("input", refreshForsale);
   maxEl.addEventListener("input", refreshForsale);
   document.getElementById("pbtn").addEventListener("click", ()=>{ minEl.value = DMIN; maxEl.value = DMAX; refreshForsale(); });

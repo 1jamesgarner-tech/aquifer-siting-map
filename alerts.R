@@ -67,7 +67,7 @@ collect_rentcast <- function(regions) {
       id=L$id %||% L$formattedAddress, address=L$formattedAddress %||% "",
       price=L$price %||% NA, beds=L$bedrooms %||% NA, baths=L$bathrooms %||% NA,
       sqft=L$squareFootage %||% NA, lot_acres=round((L$lotSize %||% NA)/43560,2),
-      year=L$yearBuilt %||% NA, dom=L$daysOnMarket %||% NA,
+      year=L$yearBuilt %||% NA, dom=L$daysOnMarket %||% NA, hoa=(L$hoa$fee) %||% NA,
       lon=L$longitude %||% NA, lat=L$latitude %||% NA, listed=substr(L$listedDate %||% "",1,10),
       mls=L$mlsNumber %||% "", agent=(L$listingAgent$name) %||% "", agent_ph=(L$listingAgent$phone) %||% "",
       url=zillow_url(L$formattedAddress %||% ""), stringsAsFactors=FALSE)
@@ -90,7 +90,7 @@ match_listings <- function(listings, targets) {
   hit <- suppressWarnings(sf::st_intersects(pts, targets)); keep <- lengths(hit)>0
   if (!any(keep)) return(empty)
   idx <- vapply(hit[keep], function(x) x[1], integer(1))
-  pcols <- intersect(c("pid","town","acres","assessed_total","owner","aquifer_class","aquifer_gpm","suit_overlap_acres"), names(targets))
+  pcols <- intersect(c("pid","town","acres","assessed_total","owner","aquifer_class","aquifer_gpm","suit_overlap_acres","flood_ok"), names(targets))
   pa <- sf::st_drop_geometry(targets)[idx, pcols, drop=FALSE]; names(pa) <- paste0("p_", names(pa))
   cbind(listings[keep,,drop=FALSE], pa)
 }
@@ -104,23 +104,35 @@ mark_seen <- function(ids){ prev <- if(file.exists(CFG$seen_csv)) read.csv(CFG$s
 ## ---- formatting -------------------------------------------------------------
 mny <- function(v) if(is.na(v)||v=="") "—" else paste0("$", format(as.numeric(v), big.mark=",", scientific=FALSE))
 g <- function(r,x){ v<-r[[x]]; if(is.null(v)||length(v)==0||is.na(v)) "" else as.character(v) }
-card <- function(r) sprintf('
+flood_label <- function(fok){ fok <- suppressWarnings(as.numeric(fok))
+  if (is.na(fok)) "" else if (fok>=1000) "Higher ground (1,000-yr + HAND&ge;10 m)" else if (fok>=500) "500-yr (0.2%) floodplain clear" else "100-yr floodplain clear" }
+card <- function(r) {
+  flood <- flood_label(g(r,"p_flood_ok"))
+  hoav  <- suppressWarnings(as.numeric(g(r,"hoa")))
+  hoa   <- if (!is.na(hoav) && hoav>0)
+             sprintf('<div style="color:#b00020;font-weight:700">&#9888; HOA fee reported: $%s/mo</div>', format(hoav, big.mark=","))
+           else '<div style="color:#2c6e49">No HOA reported</div>'
+  sprintf('
   <div style="font-family:Segoe UI,Arial;border:1px solid #d9c98a;border-radius:10px;padding:14px 16px;margin:10px 0;max-width:560px">
    <div style="font-size:16px;font-weight:700">%s</div>
    <div style="font-size:20px;font-weight:700;color:#2c6e49">%s</div>
    <div style="margin:4px 0">%s bd / %s ba · %s sqft · lot %s ac · listed %s%s</div>
+   %s
    <hr style="border:none;border-top:1px solid #eee">
    <div style="font-weight:700;color:#7a6f4a">On shortlist parcel %s · %s</div>
    <div>%s ac parcel · assessed %s · %s ac on suitable ground</div>
    <div>Aquifer: %s%s &nbsp; · &nbsp; Owner: %s</div>
-   %s%s
+   %s%s%s
   </div>',
   g(r,"address"), mny(g(r,"price")), g(r,"beds"), g(r,"baths"), g(r,"sqft"), g(r,"lot_acres"), g(r,"listed"),
   ifelse(g(r,"dom")!="", paste0(" · ",g(r,"dom")," days"),""),
+  hoa,
   g(r,"p_pid"), g(r,"p_town"), g(r,"p_acres"), mny(g(r,"p_assessed_total")), g(r,"p_suit_overlap_acres"),
   g(r,"p_aquifer_class"), ifelse(g(r,"p_aquifer_gpm")!="", paste0(" (~",g(r,"p_aquifer_gpm")," gpm)"),""), g(r,"p_owner"),
+  ifelse(flood!="", sprintf('<div style="color:#1d4ed8">Flood clearance: %s</div>', flood),""),
   ifelse(g(r,"agent")!="", sprintf('<div style="color:#555">Agent: %s %s</div>',g(r,"agent"),g(r,"agent_ph")),""),
   sprintf('<a href="%s" style="display:inline-block;margin-top:6px;font-weight:600">View listing &rarr;</a>', g(r,"url")))
+}
 
 ## ---- channels ---------------------------------------------------------------
 send_email <- function(html, subject){
@@ -160,26 +172,28 @@ write_listings_page <- function(m){
 ## ---- market-state tracking -> for_sale.geojson (the colored map overlay) ----
 ## new       = on market <= 14 days            -> green
 ## lingering = on market  > 14 days            -> sunflower yellow
-## gone      = was matched before, now absent  -> black (kept 14 days, then dropped)
+## gone      = was matched before, now absent  -> black (kept 1 day, i.e. dropped at next run)
 update_market_state <- function(m, targets){
   today <- as.Date(Sys.time())
-  cols <- c("id","pid","address","price","dom","first_seen","last_seen","status","gone_date")
+  cols <- c("id","pid","address","price","dom","first_seen","last_seen","status","gone_date","hoa")
   st <- if (file.exists(CFG$state_csv)) read.csv(CFG$state_csv, stringsAsFactors=FALSE, colClasses="character") else
         setNames(data.frame(matrix("", 0, length(cols)), stringsAsFactors=FALSE), cols)
+  if (!"hoa" %in% names(st)) st$hoa <- ""                 # migrate older state files
   cur <- as.character(m$id)
+  hoa_c <- function(i) { v <- suppressWarnings(as.numeric(m$hoa[i])); if (is.na(v)) "" else as.character(v) }
   for (i in seq_len(nrow(m))) {
     id <- as.character(m$id[i]); dom <- suppressWarnings(as.numeric(m$dom[i]))
     stt <- if (!is.na(dom) && dom > 14) "lingering" else "new"
     j <- which(st$id == id)
     if (length(j)) { st$last_seen[j]<-as.character(today); st$dom[j]<-as.character(m$dom[i]); st$price[j]<-as.character(m$price[i])
-                     st$status[j]<-stt; st$gone_date[j]<-""; st$pid[j]<-as.character(m$p_pid[i]) }
+                     st$status[j]<-stt; st$gone_date[j]<-""; st$pid[j]<-as.character(m$p_pid[i]); st$hoa[j]<-hoa_c(i) }
     else st <- rbind(st, setNames(data.frame(id, as.character(m$p_pid[i]), as.character(m$address[i]),
                      as.character(m$price[i]), as.character(m$dom[i]), as.character(today), as.character(today),
-                     stt, "", stringsAsFactors=FALSE), cols))
+                     stt, "", hoa_c(i), stringsAsFactors=FALSE), cols))
   }
   gi <- which(!(st$id %in% cur) & st$status != "gone")        # newly disappeared -> gone
   if (length(gi)) { st$status[gi] <- "gone"; st$gone_date[gi] <- as.character(today) }
-  keep <- is.na(st$gone_date) | st$gone_date=="" | (as.numeric(today - as.Date(st$gone_date)) <= 14)
+  keep <- is.na(st$gone_date) | st$gone_date=="" | (as.numeric(today - as.Date(st$gone_date)) <= 1)
   st <- st[keep, ]
   write.csv(st, CFG$state_csv, row.names=FALSE)
   ## build for_sale.geojson (one feature per parcel, joined to its polygon)
@@ -187,7 +201,7 @@ update_market_state <- function(m, targets){
   if (nrow(st2)==0) { say("  for_sale.geojson: 0 parcels"); return(invisible()) }
   geo <- targets[match(st2$pid, targets$pid), ]
   fs <- sf::st_sf(status=st2$status, address=st2$address, price=st2$price, dom=st2$dom, pid=st2$pid,
-                  geometry=sf::st_geometry(geo))
+                  hoa=ifelse(is.na(st2$hoa),"",st2$hoa), geometry=sf::st_geometry(geo))
   sf::st_write(fs, file.path(CFG$site_dir,"for_sale.geojson"), delete_dsn=TRUE, quiet=TRUE,
                layer_options=c("RFC7946=YES","COORDINATE_PRECISION=6"))
   say("  for_sale.geojson: %d parcels (new=%d lingering=%d gone=%d)", nrow(fs),
@@ -215,6 +229,12 @@ run <- function(){
   }
   prior <- seen_ids(); is_first <- length(prior)==0
   new <- m[!(as.character(m$id) %in% prior), , drop=FALSE]
+  ## never alert on listings with a reported HOA fee (they still appear, marked, on the listings page/map)
+  if (nrow(new)>0) {
+    hoa_n <- suppressWarnings(as.numeric(new$hoa)); drop_hoa <- !is.na(hoa_n) & hoa_n > 0
+    if (any(drop_hoa)) say("  skipping %d new listing(s) with a reported HOA fee", sum(drop_hoa))
+    new <- new[!drop_hoa, , drop=FALSE]
+  }
   say("NEW matches: %d (first_run=%s)", nrow(new), is_first)
   if (MODE != "send") { if (nrow(new)>0) say("  (preview: %d would alert)", nrow(new)); say("DONE (mode=%s)", MODE); return(invisible(m)) }
   if (nrow(new)==0) { say("DONE -- nothing new"); return(invisible(m)) }
