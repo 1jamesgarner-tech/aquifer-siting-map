@@ -17,6 +17,8 @@
   #title p{margin:0;font-size:12px;color:#555;line-height:1.35}
   #legend{bottom:18px;left:10px;padding:9px 11px;line-height:1.7}
   #legend .sw{display:inline-block;width:13px;height:13px;border-radius:3px;margin-right:7px;vertical-align:-2px;border:1px solid rgba(0,0,0,.25)}
+  #legend label.leg{display:block;cursor:pointer;margin:1px 0}
+  #legend label.leg input{margin:0 5px 0 0;vertical-align:-1px}
   #layers{top:10px;right:10px;padding:8px 11px}
   #layers label{display:block;cursor:pointer;margin:2px 0}
   .maplibregl-popup-content{font-size:13px;max-width:280px;padding:11px 13px;border-radius:8px}
@@ -33,6 +35,11 @@
   #pricebox input[type=range]{flex:1;accent-color:#2c6e49;cursor:pointer}
   #pbtn{border:1px solid #cfcfcf;background:#fff;border-radius:6px;padding:2px 9px;font-size:12px;cursor:pointer}
   #pbtn:hover{background:#f1f1f1}
+  #floodsel{margin-top:8px;border-top:1px solid #eee;padding-top:7px}
+  #floodsel .ttl{font-weight:600;font-size:12px;margin-bottom:3px}
+  #floodsel label{display:block;cursor:pointer;font-size:12px;margin:1px 0;color:#333}
+  #floodsel label input{margin:0 5px 0 0;vertical-align:-1px}
+  #floodcount{font-size:11px;color:#2c6e49;font-weight:600;margin-top:3px}
 </style>
 </head>
 <body>
@@ -48,12 +55,19 @@
   <label><input type="checkbox" id="t-parcels" checked> Shortlist parcels</label>
   <label><input type="checkbox" id="t-suit" checked> Suitable ground</label>
   <label><input type="checkbox" id="t-contam" checked> Contamination</label>
+  <div id="floodsel">
+    <div class="ttl">Flood protection level</div>
+    <label><input type="radio" name="flood" value="100"> 100-yr floodplain excluded</label>
+    <label><input type="radio" name="flood" value="500" checked> &nbsp;+ 500-yr (0.2%) zone excluded</label>
+    <label><input type="radio" name="flood" value="1000"> &nbsp;+ higher ground only (HAND &ge; 10 m)</label>
+    <div id="floodcount"></div>
+  </div>
 </div>
 <div id="legend" class="panel">
-  <div style="font-weight:600;margin-bottom:3px">For sale now</div>
-  <div><span class="sw" style="background:#19a33a"></span>Newly available (&le; 2 wks)</div>
-  <div><span class="sw" style="background:#06b6d4"></span>On market &gt; 2 weeks</div>
-  <div><span class="sw" style="background:#111111"></span>Just sold / off-market</div>
+  <div style="font-weight:600;margin-bottom:3px">For sale now <span style="font-weight:400;color:#999;font-size:11px">(click to filter)</span></div>
+  <label class="leg"><input type="checkbox" id="s-new" checked><span class="sw" style="background:#19a33a"></span>Newly available (&le; 2 wks)</label>
+  <label class="leg"><input type="checkbox" id="s-lingering" checked><span class="sw" style="background:#06b6d4"></span>On market &gt; 2 weeks</label>
+  <label class="leg"><input type="checkbox" id="s-gone" checked><span class="sw" style="background:#111111"></span>Just sold / off-market</label>
   <div style="font-weight:600;margin:5px 0 3px">Base layers</div>
   <div><span class="sw" style="background:#d9c98a"></span>Shortlist parcel (on aquifer ground)</div>
   <div><span class="sw" style="background:#2c6e49"></span>Suitable ground</div>
@@ -85,13 +99,19 @@ const map = new maplibregl.Map({
                                        "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
                  tileSize:256, attribution:"© OpenStreetMap, © CARTO" },
       parcels: { type:"vector", url:"pmtiles://parcels.pmtiles" },
-      suit:    { type:"geojson", data:"suitable.geojson" },
+      suit100: { type:"geojson", data:"suitable_100.geojson" },
+      suit500: { type:"geojson", data:"suitable_500.geojson" },
+      suit1000:{ type:"geojson", data:"suitable_1000.geojson" },
       contam:  { type:"geojson", data:"contamination.geojson" },
       forsale: { type:"geojson", data:"for_sale.geojson" }
     },
     layers: [
       { id:"bg", type:"raster", source:"basemap" },
-      { id:"suit-fill", type:"fill", source:"suit",
+      { id:"suit-100-fill",  type:"fill", source:"suit100",  layout:{visibility:"none"},
+        paint:{ "fill-color":"#2c6e49", "fill-opacity":0.55 } },
+      { id:"suit-500-fill",  type:"fill", source:"suit500",  layout:{visibility:"visible"},
+        paint:{ "fill-color":"#2c6e49", "fill-opacity":0.55 } },
+      { id:"suit-1000-fill", type:"fill", source:"suit1000", layout:{visibility:"none"},
         paint:{ "fill-color":"#2c6e49", "fill-opacity":0.55 } },
       { id:"parcels-fill", type:"fill", source:"parcels", "source-layer":"parcels",
         paint:{ "fill-color":"#d9c98a", "fill-opacity":0.55, "fill-outline-color":"#7a6f4a" } },
@@ -130,10 +150,16 @@ function row(label,val){ return val==null ? "" : `<div class="pc-row"><span>${la
 
 function parcelPopup(p){
   const aqf = txt(p.aquifer_class);
+  const ovsel = p["suit_ov_"+floodLevel];
+  const fok = +p.flood_ok;
+  const clr = fok>=1000 ? "highest ground (1,000-yr + HAND&ge;10 m)"
+            : fok>=500  ? "500-yr (0.2%) floodplain clear"
+            :             "100-yr floodplain clear";
   return `<div class="pc-addr">${txt(p.address)||"(no address)"}</div>
     <div class="pc-town">${txt(p.town)||""} ${p.state?("· "+p.state):""}</div>
     ${row("Acreage", num(p.acres," ac"))}
-    ${row("On suitable ground", num(p.suit_overlap_acres," ac"))}
+    ${row("On suitable ground ("+floodLevel+"-yr)", num(ovsel," ac"))}
+    ${row("Flood clearance", clr)}
     ${row("Assessed value", money(p.assessed_total))}
     ${row("Land value", money(p.assessed_land))}
     ${row("Last sale", sale(p.last_sale_price))}
@@ -180,6 +206,18 @@ const minEl = document.getElementById("pmin"), maxEl = document.getElementById("
       readEl = document.getElementById("pread"), countEl = document.getElementById("pcount");
 const fmtK = v => v>=1000000 ? "$"+(v/1000000).toFixed(2).replace(/\.?0+$/,"")+"M" : "$"+Math.round(v/1000)+"k";
 
+// ---- flood-protection level selector ----------------------------------------
+let floodLevel = 500, suitOn = true;
+const FLOOD_N = {100:66667, 500:66490, 1000:33750};
+function applyFlood(){
+  const f = [">=", ["to-number",["get","flood_ok"]], floodLevel];
+  ["parcels-fill","parcels-line"].forEach(L => map.getLayer(L) && map.setFilter(L, f));
+  [100,500,1000].forEach(l => { const id = "suit-"+l+"-fill";
+    map.getLayer(id) && map.setLayoutProperty(id, "visibility", (suitOn && l===floodLevel) ? "visible":"none"); });
+  const c = document.getElementById("floodcount");
+  if (c) c.textContent = FLOOD_N[floodLevel].toLocaleString()+" parcels at this level";
+}
+
 function startPulse(){
   if (pulseRAF) return;
   const t0 = performance.now();
@@ -200,27 +238,41 @@ function stopPulse(){
   if (map.getLayer("forsale-fill")) map.setPaintProperty("forsale-fill","fill-opacity", 0.85);
 }
 
+function selStatuses(){
+  const s = [];
+  if (document.getElementById("s-new").checked)       s.push("new");
+  if (document.getElementById("s-lingering").checked) s.push("lingering");
+  if (document.getElementById("s-gone").checked)      s.push("gone");
+  return s;
+}
 function refreshForsale(){
   const lo = Math.min(+minEl.value, +maxEl.value), hi = Math.max(+minEl.value, +maxEl.value);
   const narrowed = lo > DMIN || hi < DMAX;
+  const stsel = selStatuses();
+  const stClause = ["in", ["get","status"], ["literal", stsel]];     // category filter
   const pe = ["to-number",["get","price"], -1];
-  const filt = narrowed ? ["all", [">=", pe, lo], ["<=", pe, hi]] : null;
-  ["forsale-fill","forsale-line","forsale-pulse"].forEach(L => map.getLayer(L) && map.setFilter(L, filt));
+  const priceClause = narrowed ? ["all", [">=", pe, lo], ["<=", pe, hi]] : null;
+  const mainFilt = priceClause ? ["all", stClause, priceClause] : stClause;
+  ["forsale-fill","forsale-line","forsale-pulse"].forEach(L => map.getLayer(L) && map.setFilter(L, mainFilt));
+  map.getLayer("forsale-dim") && map.setFilter("forsale-dim", stClause);  // dim = selected categories, price-agnostic
   const vis = forsaleOn ? "visible":"none";
   ["forsale-fill","forsale-line"].forEach(L => map.setLayoutProperty(L,"visibility",vis));
   const aux = (forsaleOn && narrowed) ? "visible":"none";
   ["forsale-dim","forsale-pulse"].forEach(L => map.setLayoutProperty(L,"visibility",aux));
   if (forsaleOn && narrowed) startPulse(); else stopPulse();
   readEl.textContent = `${fmtK(lo)} – ${fmtK(hi)}`;
-  const n = FORSALE_FEATURES.filter(f => { const p = parseFloat(f.properties.price); return p>=lo && p<=hi; }).length;
-  countEl.textContent = narrowed ? `(${n} in range)` : `(${FORSALE_FEATURES.length} total)`;
+  const n = FORSALE_FEATURES.filter(f => { const p = parseFloat(f.properties.price); return p>=lo && p<=hi && stsel.includes(f.properties.status); }).length;
+  countEl.textContent = narrowed ? `(${n} in range)` : `(${n} shown)`;
 }
 
 map.on("load", ()=>{
   toggle("t-parcels",["parcels-fill","parcels-line"]);
-  toggle("t-suit",["suit-fill"]);
   toggle("t-contam",["contam-pt"]);
+  document.getElementById("t-suit").addEventListener("change", e=>{ suitOn = e.target.checked; applyFlood(); });
+  document.querySelectorAll('input[name=flood]').forEach(r => r.addEventListener("change", e=>{ floodLevel = +e.target.value; applyFlood(); }));
+  applyFlood();   // set initial parcel filter + suitable layer for the default level
   document.getElementById("t-forsale").addEventListener("change", e=>{ forsaleOn = e.target.checked; refreshForsale(); });
+  ["s-new","s-lingering","s-gone"].forEach(id => document.getElementById(id).addEventListener("change", refreshForsale));
   minEl.addEventListener("input", refreshForsale);
   maxEl.addEventListener("input", refreshForsale);
   document.getElementById("pbtn").addEventListener("click", ()=>{ minEl.value = DMIN; maxEl.value = DMAX; refreshForsale(); });
