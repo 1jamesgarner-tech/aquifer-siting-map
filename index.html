@@ -19,7 +19,7 @@
   #legend .sw{display:inline-block;width:13px;height:13px;border-radius:3px;margin-right:7px;vertical-align:-2px;border:1px solid rgba(0,0,0,.25)}
   #legend label.leg{display:block;cursor:pointer;margin:1px 0}
   #legend label.leg input{margin:0 5px 0 0;vertical-align:-1px}
-  #layers{top:10px;right:10px;padding:8px 11px}
+  #layers{top:10px;right:10px;padding:8px 11px;z-index:3}
   #layers label{display:block;cursor:pointer;margin:2px 0}
   .maplibregl-popup-content{font-size:13px;max-width:280px;padding:11px 13px;border-radius:8px}
   .pc-addr{font-weight:600;font-size:14px;margin-bottom:2px}
@@ -46,7 +46,7 @@
   #hazsel .hrow span:first-child{width:60px;color:#333}
   #hazsel .haz{flex:1;font-size:11px;padding:1px 2px;cursor:pointer}
   #hazsel .hdesc{font-size:10px;color:#6b6b6b;margin:0 0 6px 2px;line-height:1.35}
-  #hazbody{max-height:62vh;overflow-y:auto;padding-right:3px}
+  #hazbody{max-height:calc(100vh - 360px);overflow-y:auto;padding-right:3px}
 </style>
 </head>
 <body>
@@ -72,33 +72,33 @@
   <div id="hazsel">
     <div class="ttl" id="haztog">&#9656; Climate &amp; hazard filters</div>
     <div id="hazbody" style="display:none">
-      <div style="font-size:10px;color:#555;margin:0 0 5px;line-height:1.45">
-        Each filter ranks every parcel in the region by that factor and keeps only the better ones:<br>
-        &bull; <b>Any</b> — no filter (all parcels)<br>
-        &bull; <b>Moderate</b> — keep the better <b>two-thirds</b> (drop the worst third)<br>
-        &bull; <b>Low / Cleanest / Coolest / Least</b> — keep only the best <b>one-third</b><br>
-        "Best" = lowest risk, cleanest air, coolest, or least extreme rain.
+      <div style="font-size:10px;color:#555;margin:0 0 6px;line-height:1.45">
+        Each menu takes <b>all ~67,000 candidate properties shown on this map</b>, ranks them by one specific dataset, then hides the worse-scoring ones:<br>
+        &bull; <b>Any</b> — show every property<br>
+        &bull; <b>Moderate</b> — keep the better-scoring <b>2 out of every 3</b> properties<br>
+        &bull; <b>Low</b> (also labeled Cleanest / Coolest / Least) — keep only the best-scoring <b>1 out of every 3</b><br>
+        Each menu below names the exact dataset it uses.
       </div>
       <div style="font-weight:600;font-size:11px;margin:1px 0 2px">Natural hazards (FEMA)</div>
       <div class="hrow"><span>Heat wave</span><select class="haz" data-f="nri_heat" title="FEMA National Risk Index heat-wave risk."><option value="">Any (all)</option><option value="mod">Moderate (best 2/3)</option><option value="low">Low (best 1/3)</option></select></div>
-      <div class="hdesc">How often brutal, dangerous heat waves hit here &mdash; long hot stretches that send people to the ER. <b>Low</b> keeps the third of areas that bake the least.</div>
+      <div class="hdesc"><b>Data:</b> FEMA's heat-wave risk score &mdash; how often a place gets long, dangerous hot spells. <b>Low</b> = only the third of the map's properties with the least heat-wave danger.</div>
       <div class="hrow"><span>Wildfire</span><select class="haz" data-f="nri_wildfire" title="FEMA National Risk Index wildfire risk."><option value="">Any (all)</option><option value="mod">Moderate (best 2/3)</option><option value="low">Low (best 1/3)</option></select></div>
-      <div class="hdesc">How likely a wildfire is to reach this spot. <b>Low</b> keeps the third least likely to burn.</div>
+      <div class="hdesc"><b>Data:</b> FEMA's wildfire risk score &mdash; the chance a wildfire reaches a spot. <b>Low</b> = only the third of the map's properties least likely to burn.</div>
       <div class="hrow"><span>Drought</span><select class="haz" data-f="nri_drought" title="FEMA National Risk Index drought risk."><option value="">Any (all)</option><option value="mod">Moderate (best 2/3)</option><option value="low">Low (best 1/3)</option></select></div>
-      <div class="hdesc">How often long dry spells strike &mdash; the kind that dry up wells and gardens. <b>Low</b> keeps the third that dries out least.</div>
+      <div class="hdesc"><b>Data:</b> FEMA's drought risk score &mdash; how often long dry spells (that dry up wells and gardens) strike. <b>Low</b> = only the least-drought-prone third of the map's properties.</div>
       <div class="hrow"><span>Overall</span><select class="haz" data-f="nri_risk" title="FEMA National Risk Index overall natural-hazard risk."><option value="">Any (all)</option><option value="mod">Moderate (best 2/3)</option><option value="low">Low (best 1/3)</option></select></div>
-      <div class="hdesc">Every natural-disaster danger (heat, fire, floods, storms&hellip;) rolled into one score. <b>Low</b> keeps the all-around safest third.</div>
+      <div class="hdesc"><b>Data:</b> FEMA's overall risk score &mdash; every natural-disaster danger (heat, fire, floods, storms&hellip;) combined. <b>Low</b> = only the all-around safest third of the map's properties.</div>
       <div style="font-weight:600;font-size:11px;margin:5px 0 2px">Air quality (asthma)</div>
       <div class="hrow"><span>PM2.5</span><select class="haz" data-f="pm25" title="Fine-particle pollution (PM2.5), µg/m³."><option value="">Any (all)</option><option value="mod">Cleaner (best 2/3)</option><option value="low">Cleanest (best 1/3)</option></select></div>
-      <div class="hdesc">Tiny smoke &amp; soot specks you breathe deep into your lungs (from wildfires, cars, furnaces) &mdash; rough on asthma. <b>Cleanest</b> keeps the freshest-air third.</div>
+      <div class="hdesc"><b>Data:</b> EPA's fine-particle (PM2.5) readings &mdash; tiny smoke and soot you breathe in (wildfires, traffic, furnaces), bad for asthma. <b>Cleanest</b> = only the freshest-air third of the map's properties.</div>
       <div class="hrow"><span>Ozone</span><select class="haz" data-f="ozone" title="Ground-level ozone (smog), ppb."><option value="">Any (all)</option><option value="mod">Cleaner (best 2/3)</option><option value="low">Cleanest (best 1/3)</option></select></div>
-      <div class="hdesc">Smog that builds up on hot, sunny days and makes breathing harder &mdash; a big asthma trigger. <b>Cleanest</b> keeps the least-smoggy third.</div>
+      <div class="hdesc"><b>Data:</b> EPA's ground-level ozone (smog) readings &mdash; haze that builds on hot, sunny days and makes breathing harder. <b>Cleanest</b> = only the least-smoggy third of the map's properties.</div>
       <div style="font-weight:600;font-size:11px;margin:5px 0 2px">Future climate (&#8776;2050)</div>
       <div class="hrow"><span>Heat</span><select class="haz" data-f="heat_2050" title="Projected mid-century summer heat (cooling degree-days), high-emissions scenario."><option value="">Any (all)</option><option value="mod">Cooler (best 2/3)</option><option value="low">Coolest (best 1/3)</option></select></div>
-      <div class="hdesc">How much hotter summers are expected to get by ~2050 as the climate warms (more days you'd need the AC). <b>Coolest</b> keeps the third projected to stay most comfortable.</div>
+      <div class="hdesc"><b>Data:</b> federal climate-model projections for ~2050 &mdash; how much hotter summers are expected to get. <b>Coolest</b> = only the third of the map's properties projected to stay most comfortable.</div>
       <div class="hrow"><span>Extreme rain</span><select class="haz" data-f="precip1in_2050" title="Projected mid-century heavy-rain days (>=1 inch/day), high-emissions scenario."><option value="">Any (all)</option><option value="mod">Less (best 2/3)</option><option value="low">Least (best 1/3)</option></select></div>
-      <div class="hdesc">How often heavy 1-inch-plus downpours &mdash; the kind that flood roads and basements &mdash; are expected by ~2050. <b>Least</b> keeps the third projected to get the fewest.</div>
-      <div style="font-size:10px;color:#888;margin-top:3px">"Best third / two-thirds" compares parcels only within this region. Western MA is climatically similar throughout, so air-quality &amp; climate menus separate parcels less than the hazard ones.</div>
+      <div class="hdesc"><b>Data:</b> federal climate-model projections for ~2050 &mdash; how many heavy 1-inch-plus downpours (flash-flood rain) are expected per year. <b>Least</b> = only the third of the map's properties projected to get the fewest.</div>
+      <div style="font-size:10px;color:#888;margin-top:3px">Rankings compare the candidate properties to <i>each other</i> (not to the whole country). Western MA is climatically similar throughout, so the air-quality &amp; climate menus split the properties less sharply than the hazard ones.</div>
     </div>
   </div>
 </div>
