@@ -40,6 +40,12 @@
   #floodsel label{display:block;cursor:pointer;font-size:12px;margin:1px 0;color:#333}
   #floodsel label input{margin:0 5px 0 0;vertical-align:-1px}
   #floodcount{font-size:11px;color:#2c6e49;font-weight:600;margin-top:3px}
+  #hazsel{margin-top:6px;border-top:1px solid #eee;padding-top:6px}
+  #hazsel .ttl{font-weight:600;font-size:12px;cursor:pointer;user-select:none}
+  #hazsel .hrow{display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px}
+  #hazsel .hrow span:first-child{width:60px;color:#333}
+  #hazsel .haz{flex:1;accent-color:#b00020;cursor:pointer}
+  #hazsel .hv{width:34px;text-align:right;color:#666;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -61,6 +67,16 @@
     <label><input type="radio" name="flood" value="500" checked> &nbsp;+ 500-yr (0.2%) zone excluded</label>
     <label><input type="radio" name="flood" value="1000"> &nbsp;+ higher ground only (HAND &ge; 10 m)</label>
     <div id="floodcount"></div>
+  </div>
+  <div id="hazsel">
+    <div class="ttl" id="haztog">&#9656; Climate &amp; hazard filters</div>
+    <div id="hazbody" style="display:none">
+      <div class="hrow"><span>Heat wave</span><input type="range" class="haz" data-f="nri_heat" min="0" max="100" value="100"><span class="hv">any</span></div>
+      <div class="hrow"><span>Wildfire</span><input type="range" class="haz" data-f="nri_wildfire" min="0" max="100" value="100"><span class="hv">any</span></div>
+      <div class="hrow"><span>Drought</span><input type="range" class="haz" data-f="nri_drought" min="0" max="100" value="100"><span class="hv">any</span></div>
+      <div class="hrow"><span>Overall</span><input type="range" class="haz" data-f="nri_risk" min="0" max="100" value="100"><span class="hv">any</span></div>
+      <div style="font-size:10px;color:#888;margin-top:2px">Max acceptable FEMA NRI risk percentile (lower = stricter)</div>
+    </div>
   </div>
 </div>
 <div id="legend" class="panel">
@@ -211,13 +227,22 @@ const fmtK = v => v>=1000000 ? "$"+(v/1000000).toFixed(2).replace(/\.?0+$/,"")+"
 // ---- flood-protection level selector ----------------------------------------
 let floodLevel = 500, suitOn = true;
 const FLOOD_N = {100:66667, 500:66490, 1000:33750};
-function applyFlood(){
-  const f = [">=", ["to-number",["get","flood_ok"]], floodLevel];
+function hazClauses(){            // active FEMA-NRI hazard sliders -> filter clauses
+  const cl = [];
+  document.querySelectorAll(".haz").forEach(s => { const v = +s.value;
+    if (v < +s.max) cl.push(["<=", ["to-number",["get",s.dataset.f], 101], v]);  // NA(101) excluded when restricted
+  });
+  return cl;
+}
+function applyFlood(){            // builds the combined parcel filter: flood level AND all hazard sliders
+  const cl = [[">=", ["to-number",["get","flood_ok"]], floodLevel], ...hazClauses()];
+  const f = cl.length>1 ? ["all", ...cl] : cl[0];
   ["parcels-fill","parcels-line"].forEach(L => map.getLayer(L) && map.setFilter(L, f));
   [100,500,1000].forEach(l => { const id = "suit-"+l+"-fill";
     map.getLayer(id) && map.setLayoutProperty(id, "visibility", (suitOn && l===floodLevel) ? "visible":"none"); });
+  const nh = hazClauses().length;
   const c = document.getElementById("floodcount");
-  if (c) c.textContent = FLOOD_N[floodLevel].toLocaleString()+" parcels at this level";
+  if (c) c.textContent = FLOOD_N[floodLevel].toLocaleString()+" parcels"+(nh ? ` · +${nh} hazard filter${nh>1?"s":""}` : " at this level");
 }
 
 function startPulse(){
@@ -277,6 +302,15 @@ map.on("load", ()=>{
   toggle("t-contam",["contam-pt"]);
   document.getElementById("t-suit").addEventListener("change", e=>{ suitOn = e.target.checked; applyFlood(); });
   document.querySelectorAll('input[name=flood]').forEach(r => r.addEventListener("change", e=>{ floodLevel = +e.target.value; applyFlood(); }));
+  // FEMA NRI hazard sliders (AND-combined with the flood level)
+  document.querySelectorAll(".haz").forEach(s => s.addEventListener("input", e=>{
+    const v = +e.target.value; e.target.parentElement.querySelector(".hv").textContent = v < +e.target.max ? "≤"+v : "any";
+    applyFlood();
+  }));
+  document.getElementById("haztog").addEventListener("click", e=>{
+    const b = document.getElementById("hazbody"); const open = b.style.display==="none";
+    b.style.display = open ? "block":"none"; e.target.innerHTML = (open?"▾":"▸")+" Climate &amp; hazard filters";
+  });
   applyFlood();   // set initial parcel filter + suitable layer for the default level
   document.getElementById("t-forsale").addEventListener("change", e=>{ forsaleOn = e.target.checked; refreshForsale(); });
   ["s-new","s-lingering","s-gone","h-hoa"].forEach(id => document.getElementById(id).addEventListener("change", refreshForsale));
