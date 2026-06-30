@@ -79,7 +79,10 @@
       <div style="font-weight:600;font-size:11px;margin:5px 0 2px">Air quality (asthma)</div>
       <div class="hrow"><span>PM2.5</span><input type="range" class="haz" data-f="pm25" min="4" max="8" step="0.1" value="8"><span class="hv">any</span></div>
       <div class="hrow"><span>Ozone</span><input type="range" class="haz" data-f="ozone" min="50" max="60" step="0.5" value="60"><span class="hv">any</span></div>
-      <div style="font-size:10px;color:#888;margin-top:2px">Lower = stricter. NRI = percentile; PM2.5 µg/m³; ozone ppb.</div>
+      <div style="font-weight:600;font-size:11px;margin:5px 0 2px">Future climate (&#8776;2050, RCP8.5)</div>
+      <div class="hrow"><span>Heat</span><input type="range" class="haz" data-f="heat_2050" min="500" max="1050" step="10" value="1050"><span class="hv">any</span></div>
+      <div class="hrow"><span>Extreme rain</span><input type="range" class="haz" data-f="precip1in_2050" min="5" max="8" step="0.1" value="8"><span class="hv">any</span></div>
+      <div style="font-size:10px;color:#888;margin-top:2px">Lower = stricter. NRI %ile; PM2.5 µg/m³; ozone ppb; heat = cooling degree-days; rain = days/yr &ge;1in (CMRA mid-century, high-emissions).</div>
     </div>
   </div>
 </div>
@@ -185,6 +188,8 @@ function parcelPopup(p){
     ${row("Ozone", num(p.ozone," ppb"))}
     ${row("Heat-wave risk", p.nri_heat==null?null:(p.nri_heat+" %ile"))}
     ${row("Wildfire risk", p.nri_wildfire==null?null:(p.nri_wildfire+" %ile"))}
+    ${row("Heat 2050 (CDD)", p.heat_2050==null?null:(num(p.heat_2050)+(p.heat_hist?(" · now "+p.heat_hist):"")))}
+    ${row("Extreme rain 2050", p.precip1in_2050==null?null:(p.precip1in_2050+" d/yr ≥1in"+(p.precip1in_hist?(" · now "+p.precip1in_hist):"")))}
     ${row("Assessed value", money(p.assessed_total))}
     ${row("Land value", money(p.assessed_land))}
     ${row("Last sale", sale(p.last_sale_price))}
