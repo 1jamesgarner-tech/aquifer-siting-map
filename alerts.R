@@ -200,8 +200,14 @@ update_market_state <- function(m, targets){
   st2 <- st[!duplicated(st$pid) & st$pid %in% targets$pid, ]
   if (nrow(st2)==0) { say("  for_sale.geojson: 0 parcels"); return(invisible()) }
   geo <- targets[match(st2$pid, targets$pid), ]
+  gd  <- sf::st_drop_geometry(geo)
+  ga  <- function(nm) if (nm %in% names(gd)) gd[[nm]] else NA      # carry parcel attrs onto the overlay
   fs <- sf::st_sf(status=st2$status, address=st2$address, price=st2$price, dom=st2$dom, pid=st2$pid,
-                  hoa=ifelse(is.na(st2$hoa),"",st2$hoa), geometry=sf::st_geometry(geo))
+                  hoa=ifelse(is.na(st2$hoa),"",st2$hoa),
+                  flood_ok=ga("flood_ok"), nri_heat=ga("nri_heat"), nri_wildfire=ga("nri_wildfire"),
+                  nri_drought=ga("nri_drought"), nri_risk=ga("nri_risk"), pm25=ga("pm25"), ozone=ga("ozone"),
+                  heat_2050=ga("heat_2050"), precip1in_2050=ga("precip1in_2050"),
+                  geometry=sf::st_geometry(geo))
   sf::st_write(fs, file.path(CFG$site_dir,"for_sale.geojson"), delete_dsn=TRUE, quiet=TRUE,
                layer_options=c("RFC7946=YES","COORDINATE_PRECISION=6"))
   say("  for_sale.geojson: %d parcels (new=%d lingering=%d gone=%d)", nrow(fs),
