@@ -71,11 +71,15 @@
   <div id="hazsel">
     <div class="ttl" id="haztog">&#9656; Climate &amp; hazard filters</div>
     <div id="hazbody" style="display:none">
+      <div style="font-weight:600;font-size:11px;margin:1px 0 2px">Natural hazards (FEMA NRI %ile)</div>
       <div class="hrow"><span>Heat wave</span><input type="range" class="haz" data-f="nri_heat" min="0" max="100" value="100"><span class="hv">any</span></div>
       <div class="hrow"><span>Wildfire</span><input type="range" class="haz" data-f="nri_wildfire" min="0" max="100" value="100"><span class="hv">any</span></div>
       <div class="hrow"><span>Drought</span><input type="range" class="haz" data-f="nri_drought" min="0" max="100" value="100"><span class="hv">any</span></div>
       <div class="hrow"><span>Overall</span><input type="range" class="haz" data-f="nri_risk" min="0" max="100" value="100"><span class="hv">any</span></div>
-      <div style="font-size:10px;color:#888;margin-top:2px">Max acceptable FEMA NRI risk percentile (lower = stricter)</div>
+      <div style="font-weight:600;font-size:11px;margin:5px 0 2px">Air quality (asthma)</div>
+      <div class="hrow"><span>PM2.5</span><input type="range" class="haz" data-f="pm25" min="4" max="8" step="0.1" value="8"><span class="hv">any</span></div>
+      <div class="hrow"><span>Ozone</span><input type="range" class="haz" data-f="ozone" min="50" max="60" step="0.5" value="60"><span class="hv">any</span></div>
+      <div style="font-size:10px;color:#888;margin-top:2px">Lower = stricter. NRI = percentile; PM2.5 µg/m³; ozone ppb.</div>
     </div>
   </div>
 </div>
@@ -177,6 +181,10 @@ function parcelPopup(p){
     ${row("Acreage", num(p.acres," ac"))}
     ${row("On suitable ground ("+floodLevel+"-yr)", num(ovsel," ac"))}
     ${row("Flood clearance", clr)}
+    ${row("Air quality PM2.5", num(p.pm25," µg/m³"))}
+    ${row("Ozone", num(p.ozone," ppb"))}
+    ${row("Heat-wave risk", p.nri_heat==null?null:(p.nri_heat+" %ile"))}
+    ${row("Wildfire risk", p.nri_wildfire==null?null:(p.nri_wildfire+" %ile"))}
     ${row("Assessed value", money(p.assessed_total))}
     ${row("Land value", money(p.assessed_land))}
     ${row("Last sale", sale(p.last_sale_price))}
