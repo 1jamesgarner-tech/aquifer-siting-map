@@ -70,19 +70,25 @@
   <div id="hazsel">
     <div class="ttl" id="haztog">&#9656; Climate &amp; hazard filters</div>
     <div id="hazbody" style="display:none">
-      <div style="font-size:10px;color:#666;margin:0 0 4px">Keep parcels whose risk is at/below the chosen level. <b>Low</b> = best third of parcels here · <b>Moderate</b> = better two-thirds.</div>
-      <div style="font-weight:600;font-size:11px;margin:1px 0 2px">Natural hazards (FEMA NRI)</div>
-      <div class="hrow"><span>Heat wave</span><select class="haz" data-f="nri_heat"><option value="">Any</option><option value="mod">Moderate</option><option value="low">Low</option></select></div>
-      <div class="hrow"><span>Wildfire</span><select class="haz" data-f="nri_wildfire"><option value="">Any</option><option value="mod">Moderate</option><option value="low">Low</option></select></div>
-      <div class="hrow"><span>Drought</span><select class="haz" data-f="nri_drought"><option value="">Any</option><option value="mod">Moderate</option><option value="low">Low</option></select></div>
-      <div class="hrow"><span>Overall</span><select class="haz" data-f="nri_risk"><option value="">Any</option><option value="mod">Moderate</option><option value="low">Low</option></select></div>
+      <div style="font-size:10px;color:#555;margin:0 0 5px;line-height:1.45">
+        Each filter ranks every parcel in the region by that factor and keeps only the better ones:<br>
+        &bull; <b>Any</b> — no filter (all parcels)<br>
+        &bull; <b>Moderate</b> — keep the better <b>two-thirds</b> (drop the worst third)<br>
+        &bull; <b>Low / Cleanest / Coolest / Least</b> — keep only the best <b>one-third</b><br>
+        "Best" = lowest risk, cleanest air, coolest, or least extreme rain.
+      </div>
+      <div style="font-weight:600;font-size:11px;margin:1px 0 2px">Natural hazards (FEMA NRI risk)</div>
+      <div class="hrow"><span>Heat wave</span><select class="haz" data-f="nri_heat" title="FEMA heat-wave risk. Low keeps the third of parcels with the least heat-wave risk."><option value="">Any (all)</option><option value="mod">Moderate (best 2/3)</option><option value="low">Low (best 1/3)</option></select></div>
+      <div class="hrow"><span>Wildfire</span><select class="haz" data-f="nri_wildfire" title="FEMA wildfire risk. Low keeps the least fire-prone third of parcels."><option value="">Any (all)</option><option value="mod">Moderate (best 2/3)</option><option value="low">Low (best 1/3)</option></select></div>
+      <div class="hrow"><span>Drought</span><select class="haz" data-f="nri_drought" title="FEMA drought risk. Low keeps the least drought-prone third."><option value="">Any (all)</option><option value="mod">Moderate (best 2/3)</option><option value="low">Low (best 1/3)</option></select></div>
+      <div class="hrow"><span>Overall</span><select class="haz" data-f="nri_risk" title="FEMA overall natural-hazard risk. Low keeps the lowest-risk third."><option value="">Any (all)</option><option value="mod">Moderate (best 2/3)</option><option value="low">Low (best 1/3)</option></select></div>
       <div style="font-weight:600;font-size:11px;margin:5px 0 2px">Air quality (asthma)</div>
-      <div class="hrow"><span>PM2.5</span><select class="haz" data-f="pm25"><option value="">Any</option><option value="mod">Cleaner</option><option value="low">Cleanest</option></select></div>
-      <div class="hrow"><span>Ozone</span><select class="haz" data-f="ozone"><option value="">Any</option><option value="mod">Cleaner</option><option value="low">Cleanest</option></select></div>
-      <div style="font-weight:600;font-size:11px;margin:5px 0 2px">Future climate (&#8776;2050)</div>
-      <div class="hrow"><span>Heat</span><select class="haz" data-f="heat_2050"><option value="">Any</option><option value="mod">Cooler</option><option value="low">Coolest</option></select></div>
-      <div class="hrow"><span>Extreme rain</span><select class="haz" data-f="precip1in_2050"><option value="">Any</option><option value="mod">Less</option><option value="low">Least</option></select></div>
-      <div style="font-size:10px;color:#888;margin-top:3px">Region is climatically uniform, so air-quality &amp; climate filters discriminate less than the hazard ones.</div>
+      <div class="hrow"><span>PM2.5</span><select class="haz" data-f="pm25" title="Fine-particle pollution (wildfire smoke + combustion). Cleanest keeps the lowest-PM2.5 third."><option value="">Any (all)</option><option value="mod">Cleaner (best 2/3)</option><option value="low">Cleanest (best 1/3)</option></select></div>
+      <div class="hrow"><span>Ozone</span><select class="haz" data-f="ozone" title="Ground-level ozone (asthma trigger, rises with heat). Cleanest keeps the lowest-ozone third."><option value="">Any (all)</option><option value="mod">Cleaner (best 2/3)</option><option value="low">Cleanest (best 1/3)</option></select></div>
+      <div style="font-weight:600;font-size:11px;margin:5px 0 2px">Future climate (&#8776;2050, high emissions)</div>
+      <div class="hrow"><span>Heat</span><select class="haz" data-f="heat_2050" title="Projected mid-century heat (cooling degree-days). Coolest keeps the coolest-future third of parcels."><option value="">Any (all)</option><option value="mod">Cooler (best 2/3)</option><option value="low">Coolest (best 1/3)</option></select></div>
+      <div class="hrow"><span>Extreme rain</span><select class="haz" data-f="precip1in_2050" title="Projected mid-century heavy-rain days (>=1 inch/day). Least keeps the third with the fewest."><option value="">Any (all)</option><option value="mod">Less (best 2/3)</option><option value="low">Least (best 1/3)</option></select></div>
+      <div style="font-size:10px;color:#888;margin-top:3px">"Best third/two-thirds" is relative to parcels in this region. Western MA is climatically uniform, so the air-quality &amp; climate filters separate parcels less than the hazard ones do. Hover any menu for detail.</div>
     </div>
   </div>
 </div>
