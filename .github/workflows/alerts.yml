@@ -32,8 +32,8 @@ jobs:
           RENTCAST_KEY: ${{ secrets.RENTCAST_KEY }}
           GMAIL_USER:   ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PW: ${{ secrets.GMAIL_APP_PW }}
-          EMAIL_TO:     "jggarner@umass.edu,linneawinter2604@gmail.com"
-          NTFY_TOPIC:   "tangoats-fwuhfwuh"
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           MODE:         "send"
           AQ_TARGETS:   "alerts_targets.fgb"
           AQ_SITE:      "."
@@ -49,3 +49,4 @@ jobs:
           git add listings.html for_sale.geojson seen_listings.csv market_state.csv 2>/dev/null || true
           git commit -m "Weekly listing refresh" || echo "no changes to commit"
           git push || echo "nothing to push"
+
